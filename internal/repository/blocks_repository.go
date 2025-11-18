@@ -6,11 +6,11 @@ import (
 )
 
 type BlocksRepository struct {
-	Repository[entity.Yard]
+	Repository[entity.Block]
 	Log *logrus.Logger
 }
 
-func NewBlocksRepositoryRepositoryRepository(log *logrus.Logger) *BlocksRepository {
+func NewBlocksRepository(log *logrus.Logger) *BlocksRepository {
 	return &BlocksRepository{
 		Log: log,
 	}

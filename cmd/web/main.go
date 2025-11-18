@@ -1,8 +1,8 @@
 package main
 
 import (
-	"article/internal/config"
 	"fmt"
+	"place-container/internal/config"
 )
 
 func main() {
