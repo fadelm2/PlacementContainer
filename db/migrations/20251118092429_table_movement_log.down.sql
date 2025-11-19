@@ -1,1 +1,0 @@
-drop table movement_log

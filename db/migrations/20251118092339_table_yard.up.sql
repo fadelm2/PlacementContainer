@@ -1,5 +1,5 @@
-CREATE TABLE IF NOT EXISTS yards (
- id VARCHAR(255) PRIMARY KEY,
-    name text NOT NULL,
-    description text
+CREATE TABLE yards (
+                       id VARCHAR(255) PRIMARY KEY,
+                       code VARCHAR(255) NOT NULL UNIQUE,
+                       name VARCHAR(255)
 );

@@ -1,0 +1,1 @@
+drop table yard_plans

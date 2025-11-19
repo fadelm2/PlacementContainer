@@ -1,31 +1,29 @@
 package repository
 
 import (
-	"gorm.io/gorm"
+	"context"
+
+	"place-container/internal/entity"
 )
 
-type Repository[T any] struct {
-	DB *gorm.DB
-}
+type Repository interface {
+	// yard / block
+	GetYardByCode(ctx context.Context, code string) (*entity.Yard, error)
+	GetBlockByCode(ctx context.Context, yardCode, blockCode string) (*entity.Block, error)
+	ListBlocksByYard(ctx context.Context, yardCode string) ([]entity.Block, error)
 
-func (r *Repository[T]) Create(db *gorm.DB, entity *T) error {
-	return db.Create(entity).Error
-}
+	// placement actions
+	GetPlacementByPosition(ctx context.Context, yardCode, blockCode string, slot, row, tier int) (*entity.Placement, error)
+	GetPlacementByContainer(ctx context.Context, containerNumber string) (*entity.Placement, error)
+	ListPlacementsByBlock(ctx context.Context, yardCode, blockCode string) ([]entity.Placement, error)
+	DeletePlacementByContainer(ctx context.Context, containerNumber string) error
 
-func (r *Repository[T]) Update(db *gorm.DB, entity *T) error {
-	return db.Save(entity).Error
-}
+	// yard plan
+	ListYardPlansByBlock(ctx context.Context, yardCode, blockCode string) ([]entity.YardPlan, error)
 
-func (r *Repository[T]) Delete(db *gorm.DB, entity *T) error {
-	return db.Delete(entity).Error
-}
+	// overlap check (uses width of placement)
+	CheckOverlap(ctx context.Context, yardCode, blockCode string, slot, row, tier, width int) (bool, error)
 
-func (r *Repository[T]) CountById(db *gorm.DB, id any) (int64, error) {
-	var total int64
-	err := db.Model(new(T)).Where("id = ?", id).Count(&total).Error
-	return total, err
-}
-
-func (r *Repository[T]) FindById(db *gorm.DB, entity *T, id any) error {
-	return db.Where("id =?", id).Take(entity).Error
+	// create placement using DB transaction
+	CreatePlacementTx(ctx context.Context, p *entity.Placement) error
 }

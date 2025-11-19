@@ -7,7 +7,7 @@ func (l *Block) Block() string {
 type Block struct {
 	ID        string `gorm:"column:id;primaryKey"`
 	YardID    string `gorm:"column:yard_id"`
-	Name      string `gorm:"column:name"`
+	Code      string `gorm:"column:code"`
 	TotalSlot int    `gorm:"column:total_slot"`
 	TotalRow  int    `gorm:"column:total_row"`
 	TotalTier int    `gorm:"column:total_tier"`

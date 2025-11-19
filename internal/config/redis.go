@@ -1,17 +1,19 @@
 package config
 
 import (
+	"context"
 	"github.com/redis/go-redis/v9"
-	"github.com/spf13/viper"
+	"time"
 )
 
-func NewRedis(viper *viper.Viper) *redis.Client {
-	host := viper.GetString("redis.host")
-	database := viper.GetInt("redis.database")
-
-	var client = redis.NewClient(&redis.Options{
-		Addr: host,
-		DB:   database,
+func NewRedis() *redis.Client {
+	r := redis.NewClient(&redis.Options{
+		Addr:     GetEnv("REDIS_ADDR", "localhost:6379"),
+		Password: GetEnv("REDIS_PASSWORD", ""),
+		DB:       0,
 	})
-	return client
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	_ = r.Ping(ctx) // ignore error here, but in prod check
+	return r
 }

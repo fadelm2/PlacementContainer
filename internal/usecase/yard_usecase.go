@@ -2,123 +2,174 @@ package usecase
 
 import (
 	"context"
-	"github.com/go-playground/validator/v10"
-	"github.com/gofiber/fiber/v2"
-	"github.com/sirupsen/logrus"
-	"gorm.io/gorm"
+	"errors"
+	"fmt"
+	"github.com/redis/go-redis/v9"
+	"strconv"
+	"strings"
+
+	"github.com/google/uuid"
+	"place-container/internal/dto"
 	"place-container/internal/entity"
-	"place-container/internal/model"
-	"place-container/internal/model/converter"
 	"place-container/internal/repository"
 )
 
-type YardUseCase struct {
-	DB             *gorm.DB
-	Log            *logrus.Logger
-	Validate       *validator.Validate
-	YardRepository *repository.YardsRepository
+type YardUsecase struct {
+	repo  repository.Repository
+	redis *redis.Client
 }
 
-func NewYardUseCase(db *gorm.DB,
-	logger *logrus.Logger,
-	validate *validator.Validate,
-	YardRepository *repository.YardsRepository) *YardUseCase {
-	return &YardUseCase{
-		DB:             db,
-		Log:            logger,
-		Validate:       validate,
-		YardRepository: YardRepository,
-	}
+func NewYardUsecase(r repository.Repository, rd *redis.Client) *YardUsecase {
+	return &YardUsecase{repo: r, redis: rd}
 }
 
-func (c *YardUseCase) Create(ctx context.Context,
-	request *model.CreateYardRequest) (*model.YardResponse, error) {
-	tx := c.DB.WithContext(ctx).Begin()
-	defer tx.Rollback()
-
-	if err := c.Validate.Struct(request); err != nil {
-		c.Log.WithError(err).Error("error validating request body")
-		return nil, fiber.ErrBadRequest
+func (u *YardUsecase) SuggestPosition(ctx context.Context, req dto.SuggestionRequest) (*dto.SuggestionResponse, error) {
+	cacheKey := "suggestion:" + req.Yard + ":" + req.ContainerNumber
+	if u.redis != nil {
+		if v, err := u.redis.Get(ctx, cacheKey).Result(); err == nil && v != "" {
+			parts := strings.Split(v, ":")
+			if len(parts) >= 4 {
+				slot, _ := strconv.Atoi(parts[1])
+				row, _ := strconv.Atoi(parts[2])
+				tier, _ := strconv.Atoi(parts[3])
+				width := 1
+				if len(parts) >= 5 {
+					width, _ = strconv.Atoi(parts[4])
+				}
+				return &dto.SuggestionResponse{Block: parts[0], Slot: slot, Row: row, Tier: tier, Width: width}, nil
+			}
+		}
 	}
 
-	Yard := &entity.Yard{
-		ID:          request.ID, // harusnya open langsung default
-		Name:        request.Name,
-		Description: request.Description,
+	blocks, err := u.repo.ListBlocksByYard(ctx, req.Yard)
+	if err != nil {
+		return nil, err
+	}
+	if len(blocks) == 0 {
+		return nil, errors.New("no blocks found for yard")
 	}
 
-	if err := c.YardRepository.Create(tx, Yard); err != nil {
-		c.Log.WithError(err).Error("error creating Yard")
-		return nil, fiber.ErrInternalServerError
+	for _, b := range blocks {
+		plans, err := u.repo.ListYardPlansByBlock(ctx, req.Yard, b.Code)
+		if err != nil {
+			return nil, err
+		}
 
+		candidates := make([][3]int, 0)
+
+		if len(plans) == 0 {
+			for s := 1; s <= b.TotalSlot; s++ {
+				for r := 1; r <= b.TotalRow; r++ {
+					for t := 1; t <= b.TotalTier; t++ {
+						candidates = append(candidates, [3]int{s, r, t})
+					}
+				}
+			}
+		} else {
+			for _, p := range plans {
+				if p.ContainerSize != req.ContainerSize || p.ContainerType != req.ContainerType {
+					continue
+				}
+				for s := p.FromSlot; s <= p.ToSlot; s++ {
+					for r := p.FromRow; r <= p.ToRow; r++ {
+						for t := 1; t <= b.TotalTier; t++ {
+							candidates = append(candidates, [3]int{s, r, t})
+						}
+					}
+				}
+			}
+		}
+
+		width := 1
+		if req.ContainerSize == 40 {
+			width = 2
+		}
+
+		for _, cell := range candidates {
+			// ensure within bounds
+			if cell[0]+width-1 > b.TotalSlot {
+				continue
+			}
+			overlap, err := u.repo.CheckOverlap(ctx, req.Yard, b.Code, cell[0], cell[1], cell[2], width)
+			if err != nil {
+				return nil, err
+			}
+			if !overlap {
+				resp := &dto.SuggestionResponse{
+					Block: b.Code,
+					Slot:  cell[0],
+					Row:   cell[1],
+					Tier:  cell[2],
+					Width: width,
+				}
+				if u.redis != nil {
+					_ = u.redis.Set(ctx, cacheKey, fmt.Sprintf("%s:%d:%d:%d:%d", b.Code, cell[0], cell[1], cell[2], width), 30*60).Err()
+				}
+				return resp, nil
+			}
+		}
 	}
-
-	if err := tx.Commit().Error; err != nil {
-		c.Log.WithError(err).Error("error creating Post")
-		return nil, fiber.ErrInternalServerError
-	}
-
-	return converter.YardToResponse(Yard), nil
-
+	return nil, errors.New("no available position")
 }
 
-func (c *YardUseCase) Update(ctx context.Context,
-	request *model.UpdateYardRequest) (*model.YardResponse, error) {
-	tx := c.DB.WithContext(ctx).Begin()
-	defer tx.Rollback()
-
-	yard := new(entity.Yard)
-	if err := c.YardRepository.FindById(tx, yard, request.ID); err != nil {
-		c.Log.WithError(err).Error("error getting contact")
-		return nil, fiber.ErrNotFound
-	}
-	if err := c.Validate.Struct(request); err != nil {
-		c.Log.WithError(err).Error("error validating request body")
-		return nil, fiber.NewError(fiber.StatusBadRequest, "Input yang dimasukan ada kesalahan")
+func (u *YardUsecase) PlaceContainer(ctx context.Context, req dto.PlacementRequest) error {
+	// check if container already placed
+	if existing, _ := u.repo.GetPlacementByContainer(ctx, req.ContainerNumber); existing != nil {
+		return errors.New("container already placed")
 	}
 
-	if request.Name != "" {
-		yard.Name = request.Name
+	width := 1
+	if req.Size == 40 {
+		width = 2
 	}
 
-	if request.Description != "" {
-		yard.Name = request.Description
+	// check occupancy
+	overlap, err := u.repo.CheckOverlap(ctx, req.Yard, req.Block, req.Slot, req.Row, req.Tier, width)
+	if err != nil {
+		return err
+	}
+	if overlap {
+		return errors.New("position occupied")
 	}
 
-	if err := c.YardRepository.Update(tx, yard); err != nil {
-		c.Log.WithError(err).Error("error Update Post")
-		return nil, fiber.ErrInternalServerError
-
+	place := &entity.Placement{
+		ID:              uuid.New().String(),
+		YardID:          req.Yard,
+		BlockID:         req.Block,
+		ContainerNumber: req.ContainerNumber,
+		Slot:            req.Slot,
+		Row:             req.Row,
+		Tier:            req.Tier,
+		Width:           width,
+		Size:            req.Size,
+		Type:            req.Type,
+		Height:          req.Height,
 	}
 
-	if err := tx.Commit().Error; err != nil {
-		c.Log.WithError(err).Error("error Update Post")
-		return nil, fiber.ErrInternalServerError
+	if err := u.repo.CreatePlacementTx(ctx, place); err != nil {
+		return err
 	}
 
-	return converter.YardToResponse(yard), nil
-
+	// purge suggestion cache if exists
+	if u.redis != nil {
+		_ = u.redis.Del(ctx, "suggestion:"+req.Yard+":"+req.ContainerNumber).Err()
+	}
+	return nil
 }
 
-func (c *YardUseCase) Get(ctx context.Context, request *model.GetYardRequest) (*model.YardResponse, error) {
-	tx := c.DB.WithContext(ctx).Begin()
-	defer tx.Rollback()
-
-	if err := c.Validate.Struct(request); err != nil {
-		c.Log.WithError(err).Error("error validating request body")
-		return nil, fiber.ErrBadRequest
+func (u *YardUsecase) PickupContainer(ctx context.Context, req dto.PickupRequest) error {
+	p, err := u.repo.GetPlacementByContainer(ctx, req.ContainerNumber)
+	if err != nil {
+		return err
 	}
-
-	yard := new(entity.Yard)
-	if err := c.YardRepository.FindById(tx, yard, request.ID); err != nil {
-		c.Log.WithError(err).Error("error getting Post")
-		return nil, fiber.ErrNotFound
+	if p == nil {
+		return errors.New("container not found")
 	}
-
-	if err := tx.Commit().Error; err != nil {
-		c.Log.WithError(err).Error("error getting Post")
-		return nil, fiber.ErrInternalServerError
+	if err := u.repo.DeletePlacementByContainer(ctx, req.ContainerNumber); err != nil {
+		return err
 	}
-
-	return converter.YardToResponse(yard), nil
+	if u.redis != nil {
+		_ = u.redis.Del(ctx, "suggestion:"+p.YardID+":"+req.ContainerNumber).Err()
+	}
+	return nil
 }

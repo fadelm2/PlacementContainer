@@ -1,4 +1,4 @@
-package model
+package dto
 
 type YardResponse struct {
 	ID          string `json:"id,omitempty"`

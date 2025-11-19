@@ -1,9 +1,10 @@
 package entity
 
 type Yard struct {
-	ID          string `gorm:"column:id;primaryKey"`
-	Name        string `gorm:"column:name"`
-	Description string `gorm:"column:description"`
+	ID     string  `gorm:"primaryKey;column:id"`
+	Code   string  `gorm:"unique;not null;column:code"`
+	Name   string  `gorm:"column:name"`
+	Blocks []Block `gorm:"foreignKey:YardID"`
 }
 
 func (l *Yard) TableName() string {

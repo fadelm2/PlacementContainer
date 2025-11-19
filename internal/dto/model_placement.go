@@ -1,4 +1,4 @@
-package model
+package dto
 
 type PlaceRequest struct {
 	BlockID   string

@@ -1,28 +1,34 @@
 package main
 
 import (
-	"fmt"
+	"github.com/gofiber/fiber/v2"
+	"log"
+	"os"
 	"place-container/internal/config"
+	"place-container/internal/handler"
+	"place-container/internal/repository/postgres"
+	"place-container/internal/router"
+	"place-container/internal/usecase"
 )
 
 func main() {
-	viperConfig := config.NewViper()
-	log := config.NewLogger(viperConfig)
-	db := config.NewDatabase(viperConfig, log)
-	validate := config.NewValidator(viperConfig)
-	app := config.NewFiber(viperConfig)
+	db := config.NewPostgres()
+	rd := config.NewRedis()
 
-	config.Bootstrap(&config.BootstrapConfig{
-		DB:       db,
-		App:      app,
-		Log:      log,
-		Validate: validate,
-		Config:   viperConfig,
-	})
+	// Auto migrate models
 
-	webPort := viperConfig.GetInt("web.port")
-	err := app.Listen(fmt.Sprintf(":%d", webPort))
-	if err != nil {
-		log.Fatalf("Failed to start server: %v", err)
+	repo := postgres.NewPostgresRepo(db)
+	uc := usecase.NewYardUsecase(repo, rd)
+	h := handler.NewYardHandler(uc)
+
+	app := fiber.New()
+
+	router.Setup(app, h)
+
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
 	}
+	log.Println("starting on :" + port)
+	log.Fatal(app.Listen(":" + port))
 }
