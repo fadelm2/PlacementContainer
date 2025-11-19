@@ -21,7 +21,7 @@ APP Ticket Helpdesk IT
 
 ## Configuration
 
-All configuration is in `config.json` file.
+All configuration is in `.env` file.
 
 ## API Spec
 
@@ -60,3 +60,14 @@ go run cmd/web/main.go
 ```
 
 ### migrate 
+
+
+### TABLE YARD
+![Table Yard](TableYard.PNG)
+
+
+### TABLE Blocks
+![Table Blocks](TableBlocks.PNG)
+
+### TABLE Yard PLAN
+![Table Yard PLAN](TableYardPlan.PNG)
