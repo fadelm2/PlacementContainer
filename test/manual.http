@@ -10,3 +10,33 @@ Content-Type: application/json
   "container_type": "DRY"
 }
 ###
+
+POST http://localhost:8080/api/placement
+Content-Type: application/json
+
+{
+  "yard": "YRD1",
+  "container_number": "ALFI000001",
+  "block": "3F",
+  "slot": 1,
+  "row": 1,
+  "tier": 2,
+  "size": 20,
+  "Height": 8.6,
+  "Type":   "DRY"
+}
+###
+
+
+
+
+POST http://localhost:8080/api/pickup
+Content-Type: application/json
+
+{
+  "yard": "YRD1",
+  "container_number": "ALFI000001"
+}
+
+###
+

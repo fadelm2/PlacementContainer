@@ -17,7 +17,9 @@ type Repository interface {
 	GetPlacementByContainer(ctx context.Context, containerNumber string) (*entity.Placement, error)
 	ListPlacementsByBlock(ctx context.Context, yardCode, blockCode string) ([]entity.Placement, error)
 	DeletePlacementByContainer(ctx context.Context, containerNumber string) error
-
+	HasLeftContainer(ctx context.Context, yard, block string, row, tier, slot int) (bool, error)
+	HasRightContainer(ctx context.Context, yard, block string, row, tier, slot, width int) (bool, error)
+	HasContainerAbove(ctx context.Context, yard, block string, slot, row, tier, width int) (bool, error)
 	// yard plan
 	ListYardPlansByBlock(ctx context.Context, yardCode, blockCode string) ([]entity.YardPlan, error)
 

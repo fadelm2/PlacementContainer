@@ -158,6 +158,8 @@ func (u *YardUsecase) PlaceContainer(ctx context.Context, req dto.PlacementReque
 }
 
 func (u *YardUsecase) PickupContainer(ctx context.Context, req dto.PickupRequest) error {
+
+	// STEP 1: Ambil placement berdasarkan container number
 	p, err := u.repo.GetPlacementByContainer(ctx, req.ContainerNumber)
 	if err != nil {
 		return err
@@ -165,11 +167,67 @@ func (u *YardUsecase) PickupContainer(ctx context.Context, req dto.PickupRequest
 	if p == nil {
 		return errors.New("container not found")
 	}
-	if err := u.repo.DeletePlacementByContainer(ctx, req.ContainerNumber); err != nil {
+
+	// ============================================
+	// STEP 2: VALIDASI CONTAINER DI ATAS
+	// ============================================
+	hasAbove, err := u.repo.HasContainerAbove(
+		ctx,
+		p.YardID,
+		p.BlockID,
+		p.Slot,
+		p.Row,
+		p.Tier,
+		p.Width,
+	)
+	if err != nil {
 		return err
 	}
-	if u.redis != nil {
-		_ = u.redis.Del(ctx, "suggestion:"+p.YardID+":"+req.ContainerNumber).Err()
+
+	if hasAbove {
+		return errors.New("cannot pickup: another container is stacked above")
 	}
+
+	// ============================================
+	// STEP 3: VALIDASI TERJEPIT KIRI DAN KANAN
+	// ============================================
+	leftBlocked, err := u.repo.HasLeftContainer(
+		ctx,
+		p.YardID,
+		p.BlockID,
+		p.Row,
+		p.Tier,
+		p.Slot,
+	)
+	if err != nil {
+		return err
+	}
+
+	rightBlocked, err := u.repo.HasRightContainer(
+		ctx,
+		p.YardID,
+		p.BlockID,
+		p.Row,
+		p.Tier,
+		p.Slot,
+		p.Width,
+	)
+	if err != nil {
+		return err
+	}
+
+	// ❌ Tidak boleh pickup kalau terjepit dua sisi
+	if leftBlocked && rightBlocked {
+		return errors.New("cannot pickup: container is blocked from both sides")
+	}
+
+	// ============================================
+	// STEP 4: EXECUTE DELETE (SAFE)
+	// ============================================
+	err = u.repo.DeletePlacementByContainer(ctx, req.ContainerNumber)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }

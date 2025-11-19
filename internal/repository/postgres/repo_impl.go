@@ -148,3 +148,47 @@ func (r *pgRepo) CreatePlacementTx(ctx context.Context, p *entity.Placement) err
 		return nil
 	})
 }
+
+func (r *pgRepo) HasContainerAbove(ctx context.Context, yard, block string, slot, row, tier, width int) (bool, error) {
+
+	upperTier := tier + 1
+
+	var count int64
+
+	err := r.db.WithContext(ctx).
+		Model(&entity.Placement{}).
+		Where("yard_id = ? AND block_id = ?", yard, block).
+		Where("row = ?", row).
+		Where("tier = ?", upperTier).
+		Where("slot <= ? AND slot + width - 1 >= ?", slot+width-1, slot).
+		Count(&count).Error
+
+	return count > 0, err
+}
+func (r *pgRepo) HasLeftContainer(ctx context.Context, yard, block string, row, tier, slot int) (bool, error) {
+	if slot <= 1 {
+		return false, nil
+	}
+
+	var count int64
+	err := r.db.WithContext(ctx).
+		Model(&entity.Placement{}).
+		Where("yard_id = ? AND block_id = ?", yard, block).
+		Where("row = ? AND tier = ?", row, tier).
+		Where("? BETWEEN slot AND slot + width - 1", slot-1).
+		Count(&count).Error
+	return count > 0, err
+}
+
+func (r *pgRepo) HasRightContainer(ctx context.Context, yard, block string, row, tier, slot, width int) (bool, error) {
+	slotRight := slot + width
+
+	var count int64
+	err := r.db.WithContext(ctx).
+		Model(&entity.Placement{}).
+		Where("yard_id = ? AND block_id = ?", yard, block).
+		Where("row = ? AND tier = ?", row, tier).
+		Where("? BETWEEN slot AND slot + width - 1", slotRight).
+		Count(&count).Error
+	return count > 0, err
+}
