@@ -17,7 +17,7 @@ APP Ticket Helpdesk IT
 - ENV (Configuration) : https://github.com/joho/godotenv
 - Golang Migrate (Database Migration) : https://github.com/golang-migrate/migrate
 - Go Playground Validator (Validation) : https://github.com/go-playground/validator
-
+- Redis : https://github.com/redis/go-redis/v9
 
 ## Configuration
 
