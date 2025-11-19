@@ -1,4 +1,4 @@
-### GET request to example server
+### POST SUGGESTION
 POST http://localhost:8080/api/suggestion
 Content-Type: application/json
 
@@ -9,8 +9,7 @@ Content-Type: application/json
   "container_height": 8.6,
   "container_type": "DRY"
 }
-###
-
+### POST Placement
 POST http://localhost:8080/api/placement
 Content-Type: application/json
 
@@ -25,11 +24,7 @@ Content-Type: application/json
   "Height": 8.6,
   "Type":   "DRY"
 }
-###
-
-
-
-
+### POST PICKUP
 POST http://localhost:8080/api/pickup
 Content-Type: application/json
 

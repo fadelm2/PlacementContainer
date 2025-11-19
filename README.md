@@ -45,29 +45,54 @@ migrate -database "postgres://admin:123456@localhost:5432/pelabuhan?sslmode=disa
 
 ### Run Appication
 
-
-### Run unit test
-
-
-```bash
-go test -v ./test/
-```
-
-
 ### Run Web Server
 ``` bash
 go run cmd/web/main.go
 ```
 
-### migrate 
-
 
 ### TABLE YARD
-![Table Yard](TableYard.PNG)
-
+![Table Yard](TableYard.png)
 
 ### TABLE Blocks
-![Table Blocks](TableBlocks.PNG)
+![Table Blocks](blocks.png)
 
 ### TABLE Yard PLAN
-![Table Yard PLAN](TableYardPlan.PNG)
+![Table Yard PLAN](TableYardPlan.png)
+
+
+
+### POST SUGGESTION
+POST http://localhost:8080/api/suggestion
+Content-Type: application/json
+
+{
+"yard": "YRD1",
+"container_number": "ALFI000001",
+"container_size": 20,
+"container_height": 8.6,
+"container_type": "DRY"
+}
+### POST Placement
+POST http://localhost:8080/api/placement
+Content-Type: application/json
+
+{
+"yard": "YRD1",
+"container_number": "ALFI000001",
+"block": "3F",
+"slot": 1,
+"row": 1,
+"tier": 2,
+"size": 20,
+"Height": 8.6,
+"Type":   "DRY"
+}
+### POST PICKUP
+POST http://localhost:8080/api/pickup
+Content-Type: application/json
+
+{
+"yard": "YRD1",
+"container_number": "ALFI000001"
+}
